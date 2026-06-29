@@ -12,6 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 4567,
+    allowedHosts: ["www.yheditor.com"],
     proxy: {
       "/api/v1/events": {
         target: `http://localhost:${process.env.INKOS_STUDIO_PORT ?? "4569"}`,
