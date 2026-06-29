@@ -115,3 +115,15 @@ describe("hash route", () => {
     });
   });
 });
+
+describe("play route", () => {
+  it("parses #/play/:id", () => {
+    expect(parseHash("#/play/my-id")).toEqual({ page: "play", projectId: "my-id" });
+  });
+  it("round-trips to hash", () => {
+    expect(routeToHash({ page: "play", projectId: "my-id" })).toBe("#/play/my-id");
+  });
+  it("decodes url-encoded ids", () => {
+    expect(parseHash("#/play/a%20b")).toEqual({ page: "play", projectId: "a b" });
+  });
+});

@@ -117,6 +117,9 @@ const ProposeActionParams = Type.Object({
     Type.Literal("script_create"),
     Type.Literal("storyboard_create"),
     Type.Literal("interactive_film_create"),
+    Type.Literal("draft_structure"),
+    Type.Literal("connect_choice"),
+    Type.Literal("remove_node"),
   ], {
     description: "The production or assisted Studio workflow the user appears to want, but which needs explicit confirmation from general chat.",
   }),
@@ -253,12 +256,13 @@ type ProposeActionToolOptions = {
   readonly sameSession?: boolean;
 };
 
-function proposedActionSessionKind(action: ProposeActionParamsType["action"]): "book-create" | "short" | "play" | "script" | "storyboard" | "interactive-film" | "chat" {
+function proposedActionSessionKind(action: ProposeActionParamsType["action"]): "book-create" | "short" | "play" | "script" | "storyboard" | "interactive-film" | "interactive-film-authoring" | "chat" {
   if (action === "create_book") return "book-create";
   if (action === "play_start") return "play";
   if (action === "script_create") return "script";
   if (action === "storyboard_create") return "storyboard";
   if (action === "interactive_film_create") return "interactive-film";
+  if (action === "draft_structure" || action === "connect_choice" || action === "remove_node") return "interactive-film-authoring";
   if (action === "fanfic_init" || action === "continuation_import" || action === "spinoff_create" || action === "style_imitation") return "chat";
   return "short";
 }
@@ -295,6 +299,12 @@ function proposedActionFallbackTitle(action: ProposeActionParamsType["action"], 
       return isZh ? "创建分镜" : "Create storyboard";
     case "interactive_film_create":
       return isZh ? "创建互动影游" : "Create interactive film";
+    case "draft_structure":
+      return isZh ? "生成故事结构" : "Draft story structure";
+    case "connect_choice":
+      return isZh ? "连接选项" : "Connect choice";
+    case "remove_node":
+      return isZh ? "删除节点" : "Remove node";
   }
 }
 
@@ -1171,6 +1181,7 @@ export function createInteractiveFilmCreationTool(
         [
           `Interactive film "${result.projectId}" completed.`,
           `Spec: ${result.specPath}`,
+          `Story graph: ${result.storyGraphPath}`,
           `Story tree: ${result.storyTreePath}`,
           `Flags: ${result.flagsPath}`,
           `Script: ${result.scriptPath}`,

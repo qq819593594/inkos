@@ -81,6 +81,7 @@ const strings = {
   "bread.config": { zh: "配置", en: "Config" },
   "bread.home": { zh: "首页", en: "Home" },
   "bread.chapter": { zh: "第{n}章", en: "Chapter {n}" },
+  "bread.film": { zh: "剧情树", en: "Story Tree" },
 
   // Config
   "config.title": { zh: "项目配置", en: "Project Config" },

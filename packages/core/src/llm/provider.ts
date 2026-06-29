@@ -14,6 +14,7 @@ import { getEndpoint } from "./providers/index.js";
 import { lookupModel } from "./providers/lookup.js";
 import { fetchWithProxy } from "../utils/proxy-fetch.js";
 import { isApiKeyOptionalForEndpoint } from "../utils/llm-endpoint-auth.js";
+import { isLlmStubEnabled, stubChatCompletion } from "../agent/llm-stub.js";
 
 
 // === Streaming Monitor Types ===
@@ -1164,6 +1165,7 @@ export async function chatCompletion(
     readonly retry?: boolean;
   },
 ): Promise<LLMResponse> {
+  if (isLlmStubEnabled()) return Promise.resolve(stubChatCompletion(messages, model));
   // C1 (v2.0.0)：删除 maxTokensCap 机制。per-call 显式传的 maxTokens 永远不被裁剪。
   const resolved = {
     temperature: clampTemperatureForModel(

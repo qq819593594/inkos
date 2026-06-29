@@ -61,11 +61,12 @@ interface Nav {
   toServices: () => void;
   toImport: (tab?: "chapters" | "canon" | "fanfic" | "spinoff" | "imitation") => void;
   toStyle: () => void;
+  toFilm: (projectId: string) => void;
 }
 
 export interface ChatPageProps {
   readonly activeBookId?: string;
-  readonly mode?: "book" | "book-create" | "project-chat";
+  readonly mode?: "book" | "book-create" | "project-chat" | "interactive-film-authoring";
   readonly nav: Nav;
   readonly theme: Theme;
   readonly t: TFunction;
@@ -220,7 +221,9 @@ export function ChatPage({ activeBookId, mode = activeBookId ? "book" : "book-cr
   const isZh = t("nav.connected") === "\u5DF2\u8FDE\u63A5";
   const hasBook = Boolean(activeBookId);
   const currentSessionKind: ChatSessionKind = activeSession?.sessionKind
-    ?? (mode === "book-create" ? "book-create" : activeBookId ? "book" : "chat");
+    ?? (mode === "interactive-film-authoring" ? "interactive-film-authoring"
+      : mode === "book-create" ? "book-create"
+      : activeBookId ? "book" : "chat");
   const playMode = activeSession?.playMode;
   // A play session must pick its playstyle (点着玩 / 自由玩) before chatting.
   const needsPlayModeChoice = currentSessionKind === "play" && !playMode;
@@ -406,7 +409,7 @@ export function ChatPage({ activeBookId, mode = activeBookId ? "book" : "book-cr
           return;
         }
 
-        await createSession(activeBookId, "book");
+        await createSession(activeBookId, mode === "interactive-film-authoring" ? "interactive-film-authoring" : "book");
         return;
       }
 
@@ -642,13 +645,69 @@ export function ChatPage({ activeBookId, mode = activeBookId ? "book" : "book-cr
                   <ChatMessage role="user" content={msg.content} timestamp={msg.timestamp} theme={theme} />
                 ) : msg.parts && msg.parts.length > 0 ? (
                   /* Assistant message — parts-based rendering (chronological) */
-                  <AssistantMessageParts
-                    parts={msg.parts}
-                    timestamp={msg.timestamp}
-                    theme={theme}
-                    onProposedAction={handleProposedAction}
-                    onRejectProposedAction={handleRejectProposedAction}
-                  />
+                  /* Merge consecutive utility tool parts into one group */
+                  <>
+                    {(() => {
+                      type RenderItem =
+                        | { kind: "thinking"; pi: number; part: Extract<typeof msg.parts[0], { type: "thinking" }> }
+                        | { kind: "text"; pi: number; part: Extract<typeof msg.parts[0], { type: "text" }> }
+                        | { kind: "tools"; parts: Array<Extract<typeof msg.parts[0], { type: "tool" }>>; startIdx: number };
+
+                      const items: RenderItem[] = [];
+                      for (let pi = 0; pi < msg.parts!.length; pi++) {
+                        const part = msg.parts![pi];
+                        if (part.type === "thinking") {
+                          items.push({ kind: "thinking", pi, part });
+                        } else if (part.type === "text") {
+                          items.push({ kind: "text", pi, part });
+                        } else if (part.type === "tool") {
+                          // Merge consecutive tool parts into one group
+                          const last = items[items.length - 1];
+                          if (last?.kind === "tools") {
+                            last.parts.push(part);
+                          } else {
+                            items.push({ kind: "tools", parts: [part], startIdx: pi });
+                          }
+                        }
+                      }
+
+                      return items.map((item) => {
+                        if (item.kind === "thinking") {
+                          return (
+                            <div key={`t-${item.pi}`} className="mb-2">
+                              <Reasoning isStreaming={item.part.streaming}>
+                                <ReasoningTrigger />
+                                <ReasoningContent>{item.part.content}</ReasoningContent>
+                              </Reasoning>
+                            </div>
+                          );
+                        }
+                        if (item.kind === "tools") {
+                          return (
+                            <ToolExecutionSteps
+                              key={`x-${item.startIdx}`}
+                              executions={item.parts.map(p => p.execution)}
+                              onProposedAction={handleProposedAction}
+                              onRejectProposedAction={handleRejectProposedAction}
+                              onOpenFilm={nav.toFilm}
+                            />
+                          );
+                        }
+                        if (item.kind === "text" && item.part.content) {
+                          return (
+                            <ChatMessage
+                              key={`c-${item.pi}`}
+                              role="assistant"
+                              content={item.part.content}
+                              timestamp={msg.timestamp}
+                              theme={theme}
+                            />
+                          );
+                        }
+                        return null;
+                      });
+                    })()}
+                  </>
                 ) : (
                   /* Assistant message — fallback (no parts, e.g. error messages) */
                   <ChatMessage

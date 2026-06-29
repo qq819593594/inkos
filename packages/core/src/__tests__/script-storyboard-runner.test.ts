@@ -8,6 +8,7 @@ import {
   type StoryboardAssetsManifest,
 } from "../pipeline/script-storyboard-runner.js";
 import type { AgentContext } from "../agents/base.js";
+import { loadStoryGraph } from "../interactive-film/graph-store.js";
 
 const chatCompletionMock = vi.hoisted(() => vi.fn());
 
@@ -98,6 +99,52 @@ describe("storyboard creation runner", () => {
       ].join("\n"),
       usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
     });
+    chatCompletionMock.mockResolvedValueOnce({
+      content: JSON.stringify({
+        schemaVersion: 1,
+        projectId: "shengshi-ledger",
+        title: "盛世账页",
+        variables: [
+          { name: "trust_guard", type: "relationship", default: 0, desc: "侍卫信任" },
+        ],
+        nodes: [
+          {
+            id: "start",
+            title: "入宫查账",
+            type: "start",
+            sceneDesc: "女官在烛光下展开账页。",
+            dialogue: [],
+            choices: [{ id: "c1", text: "公开账页", targetNodeId: "branch-1", effects: [] }],
+          },
+          {
+            id: "branch-1",
+            title: "宫门选择",
+            type: "branch",
+            sceneDesc: "侍卫拦在宫门前。",
+            dialogue: [],
+            choices: [
+              { id: "c2", text: "交出证据", targetNodeId: "ending-good", effects: [{ var: "trust_guard", op: "add", value: 1 }] },
+              { id: "c3", text: "暗藏账页", targetNodeId: "ending-secret", effects: [] },
+            ],
+          },
+          {
+            id: "branch-2",
+            title: "账页去向",
+            type: "branch",
+            sceneDesc: "玩家决定账页的最终去向。",
+            dialogue: [],
+            choices: [{ id: "c4", text: "留给御史", targetNodeId: "ending-good", effects: [] }],
+          },
+          { id: "ending-good", title: "真相公开", type: "ending", sceneDesc: "真相公开。", dialogue: [], choices: [] },
+          { id: "ending-secret", title: "暗线潜行", type: "ending", sceneDesc: "暗线潜行。", dialogue: [], choices: [] },
+        ],
+        endings: [
+          { id: "good", nodeId: "ending-good", title: "真相公开", type: "good", description: "账页公开。" },
+          { id: "secret", nodeId: "ending-secret", title: "暗线潜行", type: "secret", description: "账页被藏起。" },
+        ],
+      }),
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    });
 
     const result = await runInteractiveFilmCreation({
       projectRoot: root,
@@ -111,6 +158,9 @@ describe("storyboard creation runner", () => {
     });
 
     expect(result.baseDir).toBe("interactive-films/shengshi-ledger");
+    expect(result).toMatchObject({
+      storyGraphPath: "interactive-films/shengshi-ledger/story-graph.json",
+    });
     await expect(readFile(join(root, result.specPath), "utf-8")).resolves.toContain("互动影游创作规格");
     await expect(readFile(join(root, result.storyTreePath), "utf-8")).resolves.toContain("N1 入宫查账");
     await expect(readFile(join(root, result.flagsPath), "utf-8")).resolves.toContain("trust_guard");
@@ -125,6 +175,56 @@ describe("storyboard creation runner", () => {
       "古装宫廷账页特写，女官手持账册，烛光，写实，16:9",
       "宫门雨夜，侍卫回头，压迫感，电影感，16:9",
     ]);
+
+    const graph = await loadStoryGraph(root, "shengshi-ledger");
+    expect(graph).not.toBeNull();
+    if (!graph) throw new Error("Expected generated story graph");
+    expect(graph.title).toBe("盛世账页");
+    expect(graph.nodes.some((node) => node.type === "start")).toBe(true);
+  });
+
+  it("falls back to a loadable story graph when graph JSON generation fails", async () => {
+    chatCompletionMock.mockResolvedValueOnce({
+      content: [
+        "# 回声剧场 互动影游方案",
+        "",
+        "## 剧情树",
+        "- 开场：主角进入废弃剧场。",
+        "- 分支：追逐回声 / 检查后台。",
+        "",
+        "## 变量与旗标表",
+        "- echo_trust：回声可信度",
+        "",
+        "## 互动剧本",
+        "### 开场",
+        "玩家选择：追逐回声 / 检查后台",
+        "",
+        "## 分镜与图像提示词",
+        "Prompt: 废弃剧场，红色帷幕，悬疑，16:9",
+      ].join("\n"),
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    });
+    chatCompletionMock.mockResolvedValueOnce({
+      content: "我无法输出 JSON，但可以概括剧情。",
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    });
+
+    const result = await runInteractiveFilmCreation({
+      projectRoot: root,
+      runtime: makeRuntime(root),
+      title: "回声剧场",
+      instruction: "做一个悬疑互动影游。",
+      projectId: "echo-theater",
+      episodeCount: 3,
+    });
+
+    expect(result.storyGraphPath).toBe("interactive-films/echo-theater/story-graph.json");
+    const graph = await loadStoryGraph(root, "echo-theater");
+    expect(graph).not.toBeNull();
+    if (!graph) throw new Error("Expected fallback story graph");
+    expect(graph.title).toBe("回声剧场");
+    expect(graph.nodes.some((node) => node.type === "start")).toBe(true);
+    expect(graph.endings.length).toBeGreaterThanOrEqual(2);
   });
 });
 

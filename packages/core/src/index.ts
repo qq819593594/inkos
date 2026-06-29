@@ -498,3 +498,86 @@ export async function sendWebhook(
   const transport = await import("./notify/webhook.js");
   await transport.sendWebhook(config, payload);
 }
+
+// ── Interactive Film (story graph) ──
+export {
+  StoryGraphSchema,
+  StoryNodeSchema,
+  ChoiceSchema,
+  VariableSchema,
+  EndingSchema,
+  ConditionSchema,
+  EffectSchema,
+  type StoryGraph,
+  type StoryNode,
+  type Choice,
+  type Variable,
+  type Ending,
+  type Condition,
+  type Effect,
+  type VarValue,
+  type NodeType,
+} from "./interactive-film/graph-schema.js";
+export {
+  evaluateCondition,
+  applyEffects,
+  visibleChoices,
+  initVarState,
+  type VarState,
+} from "./interactive-film/evaluator.js";
+export {
+  validateStoryGraph,
+  reviewStoryGraph,
+  type ValidationReport,
+  type ValidationIssue,
+} from "./interactive-film/validation.js";
+export {
+  loadStoryGraph,
+  saveStoryGraph,
+  storyGraphPath,
+} from "./interactive-film/graph-store.js";
+export {
+  generateStoryGraph,
+  buildStoryGraphFromLLMText,
+  extractJson,
+  type GenerateStoryGraphInput,
+} from "./interactive-film/generate.js";
+export {
+  WorldAnchorSchema,
+  CharacterSchema,
+  VoiceProfileSchema,
+  type WorldAnchor,
+  type Character,
+  type VoiceProfile,
+} from "./interactive-film/graph-schema.js";
+export {
+  StoryGraphDeltaSchema,
+  applyStoryGraphDelta,
+  type StoryGraphDelta,
+} from "./interactive-film/delta.js";
+export {
+  applyGraphDelta,
+  loadAuthoringState,
+  revertToSnapshot,
+  authoringStatePath,
+  type AuthoringState,
+} from "./interactive-film/authoring-store.js";
+export {
+  buildWorldAnchorDelta,
+  buildAddVariableDelta,
+  buildDefineEndingDelta,
+  buildRemoveNodeDelta,
+  buildConnectChoiceDelta,
+  buildUpsertCharactersDelta,
+} from "./interactive-film/authoring-tools.js";
+export { writeCharacterFacts, readCharacterVoices } from "./interactive-film/memory-link.js";
+export {
+  buildFillNodeDeltaFromLLMText,
+  buildStructureDeltaFromLLMText,
+} from "./interactive-film/authoring-generate.js";
+export { summarizeStoryGraph, buildFilmAuthoringContext } from "./interactive-film/film-context.js";
+export {
+  generateNodeImage,
+  defaultNodeImageDeps,
+  type NodeImageDeps,
+} from "./interactive-film/node-image.js";

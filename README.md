@@ -3,7 +3,7 @@
   <img src="assets/inkos-text.svg" width="240" height="65" alt="InkOS">
 </p>
 
-<h1 align="center">Story Creation AI Agent<br><sub>面向长短篇小说、剧本剧作、互动游戏与 IP 内容的创作智能体系统</sub></h1>
+<h1 align="center">Story Creation AI Agent<br><sub>面向长短篇小说、剧本剧作、互动影游与 IP 内容的创作智能体系统</sub></h1>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@actalk/inkos"><img src="https://img.shields.io/npm/v/@actalk/inkos.svg?color=cb3837&logo=npm" alt="npm version"></a>
@@ -24,6 +24,11 @@
 
 <p align="center">
   <a href="README.en.md">English</a> | 中文 | <a href="README.ja.md">日本語</a>
+</p>
+
+<p align="center">
+  <strong>InkOS 网页版上线！</strong>
+  <a href="https://huohuaapi.com/apps">立刻体验</a>
 </p>
 
 ---

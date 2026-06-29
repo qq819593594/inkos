@@ -36,6 +36,7 @@ import {
   createStoryboardCreationTool,
   createInteractiveFilmCreationTool,
 } from "./agent-tools.js";
+import { createFilmAuthoringTools, filmLLMDepsFromClient } from "./film-authoring-tools.js";
 import { createBookContextTransform } from "./context-transform.js";
 import {
   appendTranscriptEvents,
@@ -53,6 +54,7 @@ import type { ActionPayload, ActionSource, RequestedIntent } from "../interactio
 import type { ContextCompressionCallback } from "../models/context-compression.js";
 import { assertSafeBookId } from "../utils/book-id.js";
 import { PlayStore } from "../play/play-store.js";
+import { isLlmStubEnabled, stubAgentStream } from "./llm-stub.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -687,6 +689,23 @@ function createAgentToolsForMode(params: {
     return [proposalTool];
   }
 
+  if (params.sessionKind === "interactive-film-authoring") {
+    const projectId = params.bookId;
+    if (!projectId) {
+      throw new Error("interactive-film-authoring session requires a non-null bookId");
+    }
+    const agentCtx = params.pipeline.createAgentContext("film-authoring", projectId);
+    const llm = filmLLMDepsFromClient(agentCtx.client, agentCtx.model);
+    return createFilmAuthoringTools({
+      projectRoot: params.projectRoot,
+      projectId,
+      llm,
+      proposeActionTool: proposalTool,
+      confirmedIntent: params.requestedIntent,
+    });
+  }
+
+
   if (params.sessionKind === "play") {
     if (isConfirmed("play_start")) {
       return [createPlayStartTool(params.pipeline, params.projectRoot, params.sessionId, params.playMode, { actionPayload: params.actionPayload })];
@@ -876,6 +895,7 @@ async function runAgentSessionUnlocked(
           terminalToolResultTail = false;
           return localAssistantStopStream(streamModel);
         }
+        if (isLlmStubEnabled()) return stubAgentStream(streamModel, context);
         return guardedStreamSimple(streamModel, context, options);
       },
       getApiKey: (provider: string) => {

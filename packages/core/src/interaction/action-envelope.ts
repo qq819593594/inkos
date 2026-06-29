@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PlayModeSchema, type PlayMode } from "./session.js";
+import { StoryNodeSchema } from "../interactive-film/graph-schema.js";
 
 export const ActionSourceSchema = z.enum(["free-text", "button", "slash", "quick-action"]);
 export type ActionSource = z.infer<typeof ActionSourceSchema>;
@@ -19,6 +20,9 @@ export const RequestedIntentSchema = z.enum([
   "script_create",
   "storyboard_create",
   "interactive_film_create",
+  "draft_structure",
+  "connect_choice",
+  "remove_node",
 ]);
 export type RequestedIntent = z.infer<typeof RequestedIntentSchema>;
 
@@ -116,6 +120,18 @@ export const ActionPayloadSchema = z.object({
   scriptCreate: ScriptCreateActionPayloadSchema.optional(),
   storyboardCreate: StoryboardCreateActionPayloadSchema.optional(),
   interactiveFilmCreate: InteractiveFilmCreateActionPayloadSchema.optional(),
+  draftStructure: z.object({
+    projectId: z.string().min(1).optional(),
+    instruction: z.string().default(""),
+  }).optional(),
+  connectChoice: z.object({
+    projectId: z.string().min(1).optional(),
+    node: StoryNodeSchema,
+  }).optional(),
+  removeNode: z.object({
+    projectId: z.string().min(1).optional(),
+    nodeId: z.string().min(1),
+  }).optional(),
 }).strict();
 
 export type ActionPayload = z.infer<typeof ActionPayloadSchema>;

@@ -1,6 +1,9 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { AgentContext } from "../agents/base.js";
+import { generateStoryGraph } from "../interactive-film/generate.js";
+import { saveStoryGraph } from "../interactive-film/graph-store.js";
+import type { StoryGraph } from "../interactive-film/graph-schema.js";
 import {
   InteractiveFilmCreationAgent,
   ScriptCreationAgent,
@@ -82,6 +85,7 @@ export interface ScriptCreationRunResult {
 export interface InteractiveFilmCreationRunResult {
   readonly projectId: string;
   readonly baseDir: string;
+  readonly storyGraphPath: string;
   readonly specPath: string;
   readonly storyTreePath: string;
   readonly flagsPath: string;
@@ -227,6 +231,7 @@ export async function runInteractiveFilmCreation(
     "Storyboard",
   ], packageMarkdown);
   const imagePrompts = extractStoryboardImagePrompts(storyboard);
+  const storyGraphPath = join("interactive-films", projectId, "story-graph.json");
 
   await writeProjectText(options.projectRoot, join(baseDir, "story-tree.md"), storyTree);
   await writeProjectText(options.projectRoot, join(baseDir, "flags.md"), flags);
@@ -249,6 +254,20 @@ export async function runInteractiveFilmCreation(
     null,
     2,
   ));
+
+  options.onProgress?.("Writing interactive-film story graph...");
+  const graph = await createInteractiveFilmStoryGraph(options.runtime, {
+    projectId,
+    title: options.title,
+    input,
+    storyTree,
+    flags,
+    script,
+    imagePrompts,
+    onProgress: options.onProgress,
+  });
+  await saveStoryGraph(options.projectRoot, projectId, graph);
+
   await writeProjectText(options.projectRoot, join(baseDir, "status.json"), JSON.stringify({
     status: "completed",
     kind: "interactive_film",
@@ -259,6 +278,7 @@ export async function runInteractiveFilmCreation(
   return {
     projectId,
     baseDir,
+    storyGraphPath,
     specPath: join(baseDir, "interactive-spec.md"),
     storyTreePath: join(baseDir, "story-tree.md"),
     flagsPath: join(baseDir, "flags.md"),
@@ -329,6 +349,142 @@ export async function runStoryboardCreation(
     assetsManifestPath: join(baseDir, "assets.json"),
     assetsDir: join(baseDir, "assets"),
   };
+}
+
+async function createInteractiveFilmStoryGraph(
+  runtime: AgentContext,
+  args: {
+    readonly projectId: string;
+    readonly title: string;
+    readonly input: InteractiveFilmCreationInput;
+    readonly storyTree: string;
+    readonly flags: string;
+    readonly script: string;
+    readonly imagePrompts: string;
+    readonly onProgress?: (message: string) => void;
+  },
+): Promise<StoryGraph> {
+  try {
+    return await generateStoryGraph(runtime.client, runtime.model, {
+      projectId: args.projectId,
+      title: args.title,
+      premise: buildInteractiveFilmGraphPremise(args.input, args.storyTree, args.flags, args.script, args.imagePrompts),
+    });
+  } catch (error) {
+    args.onProgress?.(`Story graph JSON generation failed; writing a minimal playable graph. ${formatError(error)}`);
+    return buildFallbackStoryGraph(args.projectId, args.title, args.input, args.imagePrompts);
+  }
+}
+
+function buildInteractiveFilmGraphPremise(
+  input: InteractiveFilmCreationInput,
+  storyTree: string,
+  flags: string,
+  script: string,
+  imagePrompts: string,
+): string {
+  return [
+    `创作需求：${input.requirements}`,
+    input.targetAudience ? `目标受众：${input.targetAudience}` : "",
+    input.episodeCount ? `段落/集数：${input.episodeCount}` : "",
+    input.episodeDuration ? `单段时长：${input.episodeDuration}` : "",
+    input.budget ? `预算：${input.budget}` : "",
+    input.referenceMode ? `参考模式：${input.referenceMode}` : "",
+    `剧情树：\n${storyTree}`,
+    `变量旗标：\n${flags}`,
+    `互动剧本：\n${script}`,
+    `图像提示词：\n${imagePrompts}`,
+  ].filter(Boolean).join("\n\n");
+}
+
+function buildFallbackStoryGraph(
+  projectId: string,
+  title: string,
+  input: InteractiveFilmCreationInput,
+  imagePrompts: string,
+): StoryGraph {
+  const prompts = parseStoryboardPromptLines(imagePrompts);
+  const actCount = Math.max(2, Math.min(8, (input.episodeCount ?? prompts.length) || 3));
+  const nodes: StoryGraph["nodes"] = [
+    {
+      id: "start",
+      title: "开场",
+      type: "start",
+      sceneDesc: input.requirements || title,
+      dialogue: [],
+      choices: [{ id: "start-act-1", text: "进入第一幕", targetNodeId: "act-1", effects: [] }],
+      imageSlot: { prompt: prompts[0] ?? input.requirements ?? title },
+      act: "start",
+      position: { x: 0, y: 0 },
+    },
+  ];
+
+  for (let index = 1; index <= actCount; index += 1) {
+    const isLast = index === actCount;
+    nodes.push({
+      id: `act-${index}`,
+      title: `第 ${index} 幕`,
+      type: isLast ? "branch" : "normal",
+      sceneDesc: `互动影游《${title}》第 ${index} 幕。`,
+      dialogue: [],
+      choices: isLast
+        ? [
+          { id: "to-ending-a", text: "完成主线目标", targetNodeId: "ending-a", effects: [{ var: "story_progress", op: "add", value: 1 }] },
+          { id: "to-ending-b", text: "进入另一条余波", targetNodeId: "ending-b", effects: [{ var: "story_progress", op: "add", value: 1 }] },
+        ]
+        : [{ id: `act-${index}-next`, text: "继续推进", targetNodeId: `act-${index + 1}`, effects: [{ var: "story_progress", op: "add", value: 1 }] }],
+      imageSlot: { prompt: prompts[index - 1] ?? prompts[0] ?? input.requirements ?? title },
+      act: `act-${index}`,
+      position: { x: index * 260, y: index % 2 === 0 ? 120 : 0 },
+    });
+  }
+
+  nodes.push(
+    {
+      id: "ending-a",
+      title: "结局一",
+      type: "ending",
+      sceneDesc: "主线目标被完成，故事进入收束。",
+      dialogue: [],
+      choices: [],
+      act: "ending",
+      position: { x: (actCount + 1) * 260, y: -80 },
+    },
+    {
+      id: "ending-b",
+      title: "结局二",
+      type: "ending",
+      sceneDesc: "玩家选择保留另一条余波，故事进入分岔收束。",
+      dialogue: [],
+      choices: [],
+      act: "ending",
+      position: { x: (actCount + 1) * 260, y: 120 },
+    },
+  );
+
+  return {
+    schemaVersion: 1,
+    projectId,
+    title,
+    worldAnchor: {
+      storyCore: input.requirements || title,
+      theme: "",
+      genre: "interactive-film",
+      worldRules: input.referenceMode ?? "",
+      durationMinutes: 0,
+    },
+    characters: [],
+    variables: [{ name: "story_progress", type: "counter", default: 0, desc: "剧情推进进度" }],
+    nodes,
+    endings: [
+      { id: "ending-a", nodeId: "ending-a", title: "结局一", type: "neutral", description: "主线目标被完成。" },
+      { id: "ending-b", nodeId: "ending-b", title: "结局二", type: "secret", description: "玩家选择保留另一条余波。" },
+    ],
+  };
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function createStoryboardAssetsManifest(args: {

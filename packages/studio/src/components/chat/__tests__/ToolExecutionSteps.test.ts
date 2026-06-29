@@ -186,6 +186,7 @@ describe("groupChronologically", () => {
         kind: "interactive_film_created",
         title: "盛世天下影游方案",
         projectId: "shengshi-branching",
+        storyGraphPath: "interactive-films/shengshi-branching/story-graph.json",
         specPath: "interactive-films/shengshi-branching/interactive-spec.md",
         storyTreePath: "interactive-films/shengshi-branching/story-tree.md",
         flagsPath: "interactive-films/shengshi-branching/flags.md",
@@ -199,6 +200,7 @@ describe("groupChronologically", () => {
     expect(getGeneratedArtifactDetails(exec)).toMatchObject({
       kind: "interactive_film_created",
       projectId: "shengshi-branching",
+      storyGraphPath: "interactive-films/shengshi-branching/story-graph.json",
       storyTreePath: "interactive-films/shengshi-branching/story-tree.md",
       flagsPath: "interactive-films/shengshi-branching/flags.md",
       assetsManifestPath: "interactive-films/shengshi-branching/assets.json",
@@ -206,6 +208,7 @@ describe("groupChronologically", () => {
 
     const html = renderToStaticMarkup(React.createElement(ToolExecutionSteps, { executions: [exec] }));
     expect(html).toContain("互动影游已生成");
+    expect(html).toContain("剧情图谱");
     expect(html).toContain("剧情树");
     expect(html).toContain("变量旗标");
     expect(html).toContain("图片资产");

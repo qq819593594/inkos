@@ -24,6 +24,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./interactive-film/evaluator": {
+      "types": "./dist/interactive-film/evaluator.d.ts",
+      "import": "./dist/interactive-film/evaluator.js"
+    },
+    "./interactive-film/graph-schema": {
+      "types": "./dist/interactive-film/graph-schema.d.ts",
+      "import": "./dist/interactive-film/graph-schema.js"
     }
   },
   "files": [
